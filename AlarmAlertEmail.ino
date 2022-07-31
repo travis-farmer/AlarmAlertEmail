@@ -2,7 +2,12 @@
 #include <WiFi101.h>
 #include <PubSubClient.h>
 #include "arduino_secrets.h"
+#include <PZEM004T.h>
 
+PZEM004T* pzema;
+PZEM004T* pzemb;
+IPAddress ipa(192,168,1,1);
+IPAddress ipb(192,168,1,2);
 
 // Update these with values suitable for your hardware/network.
 byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xEB };
@@ -23,7 +28,8 @@ bool flagFire = false;
 // Telemetry Variables
 int gblFurnOnOff = 0;
 int gblACOnOff = 0;
-
+int gblThermSet = 0;
+float fltRoomTemp = 0.00;
 
 void callback(char* topic, byte* payload, unsigned int length) {
   String tmpTopic = topic;
@@ -35,6 +41,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   if (tmpTopic == "telemetry/furnonoff") {int intFurnOnOff = atoi(tmpStr); gblFurnOnOff = intFurnOnOff; }
   else if (tmpTopic == "telemetry/aconoff") {int intACOnOff = atoi(tmpStr); gblACOnOff = intACOnOff; }
+  else if (tmpTopic == "telemetry/thermset") {int intThermSet = atoi(tmpStr); gblThermSet = intThermSet; }
 
 }
 
@@ -49,15 +56,32 @@ void printTelemetry() {
   client.publish("telemetry/roomtempf",sz);
   dtostrf(roomTempF, 4, 2, sz);
   client.publish("telemetry/roomtempf",sz);
-
+  float va = pzema->voltage(ipa);
+  if (va < 0.0) va = 0.0;
+  dtostrf(va, 4, 2, sz);
+  client.publish("telemetry/l1volts",sz)
+  float vb = pzemb->voltage(ipb);
+  if (vb < 0.0) vb = 0.0;
+  dtostrf(vb, 4, 2, sz);
+  client.publish("telemetry/l2volts",sz)
+  float ia = pzema->current(ipa);
+  if (ia < 0.0) ia = 0.0;
+  dtostrf(ia, 4, 2, sz);
+  client.publish("telemetry/l1amps",sz)
+  float ib = pzemb->current(ipb);
+  if (ib < 0.0) ib = 0.0;
+  dtostrf(ib, 4, 2, sz);
+  client.publish("telemetry/l2amps",sz)
 }
 
 long lastReconnectAttempt = 0;
+unsigned long lastThermostat = 0UL;
 
 boolean reconnect() {
   if (client.connect("arduinoClient2")) {
     client.subscribe("telemetry/furnonoff");
     client.subscribe("telemetry/aconoff");
+    client.subscribe("telemetry/thermset");
     printTelemetry();
 
   }
@@ -73,12 +97,17 @@ void fireIRQ() {
 }
 
 void setup() {
-
   Serial.begin(9600);
+
+  while(!Serial1) { }
+  pzema = new PZEM004T(&Serial1);
+  pzema->setAddress(ipa);
+  while(!Serial2) { }
+  pzemb = new PZEM004T(&Serial2);
+  pzemb->setAddress(ipb);
 
   pinMode(2,INPUT_PULLUP);
   pinMode(3,INPUT_PULLUP);
-  pinMode(22,INPUT);
 
   client.setServer(serverb, 1883);
   client.setCallback(callback);
@@ -137,11 +166,7 @@ void loop() {
   } else {
     alertStr += "f";
   }
-  if (digitalRead(22) == HIGH) {
-    alertStr += "P";
-  } else {
-    alertStr += "p";
-  }
+
   String postVariable = "toemail=";
   postVariable += TOEMAIL;
   postVariable += "&fromemail=";
@@ -162,6 +187,23 @@ void loop() {
 
     if (aclient.connected()) {
       aclient.stop();
+    }
+  }
+
+  long timTimer = millis();
+  if (timTimer - lastThermostat >= 1000) {
+    lastThermostat = timTimer;
+    if ((gblFurnOnOff == 1 || gblACOnOff == 1) && (gblACOnOff != gblFurnOnOff)) {
+      if (gblACOnOff == 1) {
+        // turn on A/C fan
+      }
+      if (gblACOnOff == 1 && fltRoomTemp >= (gblThermSet + 5.00)) {
+        // turn on A/C
+      } else if (gblFurnOnOff == 1 && fltRoomTemp <= (gblThermSet - 5)) {
+        // turn on furnace
+      }
+    } else {
+      //turn off fornace and A/C
     }
   }
 
