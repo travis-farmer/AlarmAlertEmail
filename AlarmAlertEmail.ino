@@ -1,5 +1,12 @@
+//#define USE_ETHERNET 1
+
+
 #include <SPI.h>
-#include <WiFi101.h>
+#ifdef USE_ETHERNET
+  #include <Ethernet.h>
+#else
+  #include <WiFi101.h>
+#endif // USE_ETHERNET
 #include <PubSubClient.h>
 #include "arduino_secrets.h"
 #include <PZEM004T.h>
@@ -44,9 +51,14 @@ void callback(char* topic, byte* payload, unsigned int length) {
   else if (tmpTopic == "telemetry/thermset") {int intThermSet = atoi(tmpStr); gblThermSet = intThermSet; }
 
 }
+#ifdef USE_ETHERNET
+  EthernetClient aClient;
+  EthernetClient bClient;
+#else
+  WiFiClient aclient;
+  WiFiClient bClient;
+#endif // USE_ETHERNET
 
-WiFiClient aclient;
-WiFiClient bClient;
 PubSubClient client(bClient);
 
 void printTelemetry() {
@@ -112,6 +124,23 @@ void setup() {
   client.setServer(serverb, 1883);
   client.setCallback(callback);
 
+#ifdef USE_ETHERNET
+  //Serial.println("Initialize Ethernet with DHCP:");
+  if (Ethernet.begin(mac) == 0) {
+    //Serial.println("Failed to configure Ethernet using DHCP");
+    // Check for Ethernet hardware present
+    if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+      //Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+
+    }
+    if (Ethernet.linkStatus() == LinkOFF) {
+      //Serial.println("Ethernet cable is not connected.");
+
+    }
+    // try to congifure using IP address instead of DHCP:
+    Ethernet.begin(mac, ip, myDns);
+  }
+#else
   //WiFi.setPins(53,48,49);
   int status = WiFi.begin(ssid, pass);
   if ( status != WL_CONNECTED) {
@@ -125,6 +154,8 @@ void setup() {
     Serial.print("My IP address is: ");
     Serial.println(ip);
   }
+#endif // USE_ETHERNET
+
 
   delay(1500);
   lastReconnectAttempt = 0;
@@ -199,11 +230,11 @@ void loop() {
       }
       if (gblACOnOff == 1 && fltRoomTemp >= (gblThermSet + 5.00)) {
         // turn on A/C
-      } else if (gblFurnOnOff == 1 && fltRoomTemp <= (gblThermSet - 5)) {
+      } else if (gblFurnOnOff == 1 && fltRoomTemp <= (gblThermSet - 5.00)) {
         // turn on furnace
       }
     } else {
-      //turn off fornace and A/C
+      //turn off furnace and A/C
     }
   }
 
