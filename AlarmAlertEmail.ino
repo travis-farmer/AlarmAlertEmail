@@ -18,7 +18,7 @@ IPAddress ipb(192,168,1,2);
 
 // Update these with values suitable for your hardware/network.
 byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xEB };
-IPAddress server(192, 168, 1, 26);
+IPAddress server(192, 168, 1, 211);
 IPAddress serverb(192, 168, 1, 42);
 
 // WiFi card example
