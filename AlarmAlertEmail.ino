@@ -66,8 +66,6 @@ void printTelemetry() {
 
   dtostrf(roomTempF, 4, 2, sz);
   client.publish("telemetry/roomtempf",sz);
-  dtostrf(roomTempF, 4, 2, sz);
-  client.publish("telemetry/roomtempf",sz);
   float va = pzema->voltage(ipa);
   if (va < 0.0) va = 0.0;
   dtostrf(va, 4, 2, sz);
@@ -224,6 +222,7 @@ void loop() {
   long timTimer = millis();
   if (timTimer - lastThermostat >= 1000) {
     lastThermostat = timTimer;
+    printTelemetry();
     if ((gblFurnOnOff == 1 || gblACOnOff == 1) && (gblACOnOff != gblFurnOnOff)) {
       if (gblACOnOff == 1) {
         // turn on A/C fan
